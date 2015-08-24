@@ -33,10 +33,19 @@ namespace BMP180App
 
         private async void InitializeSensors()
         {
+            string calibrationData;
+
             // Initialize the BMP180 Sensor
-            _bmp180 = new Bmp180Sensor();
-            await _bmp180.InitializeAsync();
-            var calibrationData = _bmp180.CalibrationData.ToString();
+            try
+            {
+                _bmp180 = new Bmp180Sensor();
+                await _bmp180.InitializeAsync();
+                calibrationData = _bmp180.CalibrationData.ToString();
+            }
+            catch (Exception ex)
+            {
+                calibrationData = "Device Error! " + ex.Message;
+            }
 
             var task = this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
@@ -49,17 +58,31 @@ namespace BMP180App
             if (_bmp180 == null)
                 return;
 
-            button.IsEnabled = false;
 
-            /* Now that everything is initialized, create a timer so we read data every 1S */
-            _periodicTimer = new Timer(this.TimerCallback, null, 0, 1000);
+            if (_periodicTimer == null)
+            {
+                _periodicTimer = new Timer(this.TimerCallback, null, 0, 1000);
+                var task = this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    button.Content = "Stop Reading Sensor";
+                });
+            }
+            else
+            {
+                _periodicTimer.Dispose();
+                var task = this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    button.Content = "Get Sensor Readings";
+                });
+                _periodicTimer = null;
+            }
         }
 
         private async void TimerCallback(object state)
         {
             string temperatureText, pressureText;
 
-            /* Read and format Sensor data */
+            // Read and format Sensor data
             try
             {
                 var sensorData = await _bmp180.GetSensorDataAsync(Bmp180AccuracyMode.UltraHighResolution);
@@ -71,10 +94,10 @@ namespace BMP180App
             catch (Exception ex)
             {
                 temperatureText = "Sensor Error: " + ex.Message;
-                pressureText = "Sensor Error!" + ex.Message;
+                pressureText = "Sensor Error: " + ex.Message;
             }
 
-            /* UI updates must be invoked on the UI thread */
+            // UI updates must be invoked on the UI thread
             var task = this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
                 temperatureTextBlock.Text = temperatureText;
